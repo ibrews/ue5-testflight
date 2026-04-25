@@ -1,0 +1,37 @@
+# ue5kit.conf — UE5 → TestFlight Pipeline Configuration
+# Copy this file to ue5kit.conf and fill in your values.
+# Source: https://github.com/ibrews/ue5-testflight
+#
+# NEVER commit ue5kit.conf — it contains secrets.
+
+# ── UE5 Engine ──────────────────────────────────────────────────────────────
+UE5_ENGINE_PATH="/Users/Shared/Epic Games/UE_5.7"
+
+# ── iOS Project ─────────────────────────────────────────────────────────────
+IOS_PROJECT_PATH="/path/to/YourProject/YourProject.uproject"
+IOS_PROJECT_NAME="YourProject"                        # basename of .uproject
+IOS_ARCHIVE_DIR="/path/to/YourProject-iOS-Packaged"  # build output dir
+
+# ── visionOS Project (can be the same project as iOS) ───────────────────────
+VISIONOS_PROJECT_PATH="/path/to/YourProject/YourProject.uproject"
+VISIONOS_PROJECT_NAME="YourProject"
+VISIONOS_ARCHIVE_DIR="/path/to/YourProject-VisionOS-Packaged"
+
+# ── Apple Signing ────────────────────────────────────────────────────────────
+BUNDLE_ID="com.yourcompany.yourapp"
+CERT_SHA1="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"  # iPhone Distribution cert SHA1
+                                                       # find: security find-identity -v -p codesigning
+CI_KEYCHAIN_PATH="$HOME/Library/Keychains/ue5-ci.keychain-db"
+CI_KEYCHAIN_PASS="your-keychain-password"
+PROFILE_PATH="$HOME/.ios-dist-cert/AppStore.mobileprovision"
+
+# ── App Store Connect API ────────────────────────────────────────────────────
+ASC_KEY_ID="XXXXXXXXXX"                               # 10-char key ID from ASC
+ASC_ISSUER_ID="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"  # UUID from ASC
+ASC_KEY_PATH="$HOME/.private_keys/AuthKey_XXXXXXXXXX.p8"
+ASC_APP_ID="0000000000"                               # Numeric app ID from ASC URL
+ASC_EXTERNAL_GROUP_ID="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"  # betaGroups UUID
+
+# ── LaunchAgent Labels ───────────────────────────────────────────────────────
+# Reverse-DNS prefix for LaunchAgent labels (e.g. com.yourcompany)
+ORG_LABEL="com.yourcompany"

@@ -1,0 +1,4 @@
+ue5kit.conf
+*.xcent
+*.ipa
+__pycache__/

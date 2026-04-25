@@ -17,7 +17,15 @@ VISIONOS_PROJECT_PATH="/path/to/YourProject/YourProject.uproject"
 VISIONOS_PROJECT_NAME="YourProject"
 VISIONOS_ARCHIVE_DIR="/path/to/YourProject-VisionOS-Packaged"
 
-# ── Apple Signing ────────────────────────────────────────────────────────────
+# ── macOS Project (can be the same project as iOS) ───────────────────────────
+MACOS_PROJECT_PATH="/path/to/YourProject/YourProject.uproject"
+MACOS_PROJECT_NAME="YourProject"
+MACOS_ARCHIVE_DIR="/path/to/YourProject-macOS-Packaged"
+MACOS_CERT_SHA1="BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"  # 3rd Party Mac Developer Application cert SHA1
+                                                             # find: security find-identity -v -p codesigning
+MACOS_PROFILE_PATH="$HOME/.mac-dist-cert/AppStore_Mac.provisionprofile"
+
+# ── Apple Signing (iOS/visionOS) ─────────────────────────────────────────────
 BUNDLE_ID="com.yourcompany.yourapp"
 CERT_SHA1="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"  # iPhone Distribution cert SHA1
                                                        # find: security find-identity -v -p codesigning

@@ -14,8 +14,9 @@ import urllib.request, urllib.error, json, base64, time, sys, os, re
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONF_PATH  = os.path.join(SCRIPT_DIR, "..", "ue5kit.conf")
 PLATFORM_FILTER = sys.argv[1].upper() if len(sys.argv) > 1 else "IOS"
-# visionOS uses VISION_OS in ASC API
-ASC_PLATFORM = "VISION_OS" if PLATFORM_FILTER == "VISIONOS" else "IOS"
+# Map CLI arg to ASC API platform value
+_PLATFORM_MAP = {"VISIONOS": "VISION_OS", "MACOS": "MAC_OS", "IOS": "IOS"}
+ASC_PLATFORM = _PLATFORM_MAP.get(PLATFORM_FILTER, "IOS")
 MAX_POLLS = 60   # 60 × 60s = 60 min
 
 

@@ -1,6 +1,6 @@
 # ue5-testflight
 
-Fully autonomous UE5 → TestFlight pipeline for **iOS** and **visionOS**. One command triggers build → sign → upload → distribute. No manual steps.
+Fully autonomous UE5 → TestFlight pipeline for **iOS**, **visionOS**, and **macOS**. One command triggers build → sign → upload → distribute. No manual steps.
 
 ```bash
 launchctl start com.yourcompany.iosbuild
@@ -9,18 +9,18 @@ launchctl start com.yourcompany.iosbuild
 
 ## What It Does
 
-| Step | iOS | visionOS |
-|------|-----|----------|
-| Cook + stage via RunUAT | ✓ | ✓ |
-| Patch Info.plist (bundle ID, build number, privacy strings) | ✓ | ✓ |
-| Auto-increment CFBundleVersion | ✓ | ✓ |
-| Extract entitlements from provisioning profile | ✓ | ✓ |
-| Generate 3-layer `.solidimagestack` icon (Apple requirement) | — | ✓ |
-| Re-sign with CI keychain (no UI dialog) | ✓ | ✓ |
-| Pack IPA | ✓ | ✓ |
-| Upload via `xcrun altool` | ✓ | ✓ |
-| Poll ASC until VALID | ✓ | ✓ |
-| Attach to external TestFlight group | ✓ | ✓ |
+| Step | iOS | visionOS | macOS |
+|------|-----|----------|-------|
+| Cook + stage via RunUAT | ✓ | ✓ | ✓ |
+| Patch Info.plist (bundle ID, build number, privacy strings) | ✓ | ✓ | ✓ |
+| Auto-increment CFBundleVersion | ✓ | ✓ | ✓ |
+| Extract entitlements from provisioning profile | ✓ | ✓ | ✓ |
+| Generate 3-layer `.solidimagestack` icon (Apple requirement) | — | ✓ | — |
+| Re-sign with CI keychain (no UI dialog) | ✓ | ✓ | ✓ |
+| Pack IPA / zip .app | ✓ | ✓ | ✓ |
+| Upload via `xcrun altool` | ✓ | ✓ | ✓ |
+| Poll ASC until VALID | ✓ | ✓ | ✓ |
+| Attach to external TestFlight group | ✓ | ✓ | ✓ |
 
 ## Requirements
 
@@ -31,8 +31,9 @@ launchctl start com.yourcompany.iosbuild
   /opt/homebrew/bin/pip3 install cryptography pillow
   ```
 - App Store Connect API key (`.p8` file + Key ID + Issuer ID)
-- iOS Distribution certificate in a CI keychain (to sign without UI prompt)
-- App Store provisioning profile (`.mobileprovision`)
+- iOS Distribution certificate + App Store `.mobileprovision` (for iOS/visionOS)
+- 3rd Party Mac Developer Application certificate + Mac App Store `.provisionprofile` (for macOS)
+- All certs imported into a CI keychain (to sign without UI prompt)
 
 ## Setup
 
@@ -50,7 +51,14 @@ cp ue5kit.conf.template ue5kit.conf
 ```bash
 # Create a dedicated keychain so codesign works from LaunchAgents (no UI prompt)
 security create-keychain -p "your-password" ~/Library/Keychains/ue5-ci.keychain-db
-security import YourDistCert.p12 -k ~/Library/Keychains/ue5-ci.keychain-db -P "" -T /usr/bin/codesign
+
+# Import iOS Distribution cert
+security import YourIOSDistCert.p12 -k ~/Library/Keychains/ue5-ci.keychain-db -P "" -T /usr/bin/codesign
+
+# Import Mac Application Distribution cert
+security import YourMacDistCert.p12 -k ~/Library/Keychains/ue5-ci.keychain-db -P "" -T /usr/bin/codesign
+
+# Allow codesign to access both certs without a UI dialog
 security set-key-partition-list -S "apple-tool:,apple:,codesign:" -s -k "your-password" ~/Library/Keychains/ue5-ci.keychain-db
 ```
 
@@ -78,7 +86,7 @@ Copy `ue5-config/DefaultDeviceProfiles.ini` content into `Config/DefaultDevicePr
 bash setup.sh
 ```
 
-This validates config, checks prerequisites, and installs the four LaunchAgents.
+This validates config, checks prerequisites, and installs the six LaunchAgents.
 
 ## Usage
 
@@ -86,18 +94,23 @@ This validates config, checks prerequisites, and installs the four LaunchAgents.
 # Trigger full pipeline
 launchctl start com.yourcompany.iosbuild       # or your $ORG_LABEL
 launchctl start com.yourcompany.visionosbuild
+launchctl start com.yourcompany.macosbuild
 
 # Monitor
 tail -f /tmp/ue5kit-ios-build.log
 tail -f /tmp/ue5kit-ship-ios.log
+tail -f /tmp/ue5kit-macos-build.log
+tail -f /tmp/ue5kit-ship-macos.log
 
 # Ship only (build already staged)
 launchctl start com.yourcompany.shipios
 launchctl start com.yourcompany.shipvisionos
+launchctl start com.yourcompany.shipmacos
 
 # Manual external group attach (if ASC poll timed out)
 python3 scripts/attach_to_group.py ios
 python3 scripts/attach_to_group.py visionos
+python3 scripts/attach_to_group.py macos
 ```
 
 ## Hard-Won Gotchas
@@ -112,11 +125,17 @@ python3 scripts/attach_to_group.py visionos
 
 **visionOS icon must be a `.solidimagestack`.** Apple rejects with ITMS-90970 without one. The `gen_visionos_icon.py` script generates a minimal placeholder and compiles it with `xcrun actool`. The `CFBundlePrimaryIcon` Info.plist value must be a **string** — not a dict (ITMS-90039 if dict).
 
-**visionOS ASC processing takes 30–60 min** (vs 5–10 min for iOS). The poll script will time out. Run `attach_to_group.py visionos` manually once the build is VALID.
+**visionOS ASC processing takes 30–60 min** (vs 5–10 min for iOS/macOS). The poll script will time out. Run `attach_to_group.py visionos` manually once the build is VALID.
 
-**UE5 allows only one RunUAT at a time.** Don't trigger iOS and visionOS builds simultaneously — the second one exits immediately with an AutomationTool mutex error.
+**UE5 allows only one RunUAT at a time.** Don't trigger builds simultaneously — the second one exits immediately with an AutomationTool mutex error.
 
 **iOS builds run on Apple Vision Pro** via the iOS compatibility layer. You don't need a separate visionOS build to test on the headset.
+
+**macOS uses a different cert and profile type.** The iOS Distribution cert won't sign macOS builds. You need a `3rd Party Mac Developer Application` cert (`MACOS_CERT_SHA1`) and a Mac App Store `.provisionprofile` (`MACOS_PROFILE_PATH`) — separate from the iOS `.mobileprovision`.
+
+**macOS Info.plist is at `Contents/Info.plist`**, not at the root of the `.app` bundle like iOS. The ship script handles this automatically.
+
+**macOS upload uses `--type macos` and a `.zip`**, not an IPA. `xcrun altool` accepts a zip of the `.app` bundle directly.
 
 ## ASC Setup Notes
 
@@ -135,11 +154,13 @@ ue5-testflight/
 ├── scripts/
 │   ├── run_ios_build.sh     # UE5 cook+stage for iOS → auto-triggers ship
 │   ├── run_visionos_build.sh
+│   ├── run_macos_build.sh
 │   ├── ship_ios.sh          # resign → repack → upload → distribute
 │   ├── ship_visionos.sh
-│   ├── gen_entitlements.py  # extract entitlements from .mobileprovision
+│   ├── ship_macos.sh
+│   ├── gen_entitlements.py  # extract entitlements from .mobileprovision/.provisionprofile
 │   ├── gen_visionos_icon.py # generate .solidimagestack icon + compile with actool
-│   └── attach_to_group.py  # poll ASC for VALID + attach to external group
+│   └── attach_to_group.py  # poll ASC for VALID + attach to external group (ios/visionos/macos)
 └── ue5-config/
     ├── VisionOS/
     │   ├── VisionOSEngine.ini        # copy to your project Config/VisionOS/

@@ -125,6 +125,8 @@ python3 scripts/attach_to_group.py macos
 
 **visionOS icon must be a `.solidimagestack`.** Apple rejects with ITMS-90970 without one. The `gen_visionos_icon.py` script generates a minimal placeholder and compiles it with `xcrun actool`. The `CFBundlePrimaryIcon` Info.plist value must be a **string** — not a dict (ITMS-90039 if dict).
 
+**Half-transparent rendering in mixed immersion** — `r.MobileHDR=False`, `r.ForwardShading=True`, and `r.Mobile.ShadingPath=0` must all be present in `DefaultEngine.ini`. Missing any one of them causes the HDR/deferred pipeline to mishandle the alpha channel, making geometry appear semi-transparent.
+
 **visionOS ASC processing takes 30–60 min** (vs 5–10 min for iOS/macOS). The poll script will time out. Run `attach_to_group.py visionos` manually once the build is VALID.
 
 **UE5 allows only one RunUAT at a time.** Don't trigger builds simultaneously — the second one exits immediately with an AutomationTool mutex error.

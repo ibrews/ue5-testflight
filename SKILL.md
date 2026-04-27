@@ -68,6 +68,7 @@ python3 scripts/attach_to_group.py macos
 - **UE5 ignores `BundleIdentifier`** in DefaultEngine.ini for iOS builds. The ship scripts patch `CFBundleIdentifier` in the staged `.app/Info.plist` post-build.
 - **iOS 30fps default** — must set `FrameRateLock=PUFRL_None` in `DefaultEngine.ini` AND the CVars in `DefaultDeviceProfiles.ini`. Neither alone is sufficient.
 - **visionOS crashes after splash** without `Config/VisionOS/VisionOSEngine.ini` and `VisionOSDeviceProfiles.ini` in the project. Copy from `ue5-config/VisionOS/`.
+- **Half-transparent rendering in mixed immersion** — `r.MobileHDR=False`, `r.ForwardShading=True`, and `r.Mobile.ShadingPath=0` must all be present in `DefaultEngine.ini`. Missing any one of them causes the HDR/deferred pipeline to mishandle the alpha channel, making geometry appear semi-transparent.
 - **visionOS transparent scene (passthrough only, no content)** — two possible causes: (1) `xr.OpenXRInvertAlpha=True` missing from `[/Script/OpenXRHMD.OpenXRHMDSettings]` in DefaultEngine.ini — without it UE5 renders transparent; (2) `GameDefaultMap` points to an engine map that doesn't get cooked — use a project-owned map in `Content/`.
 - **visionOS baked lighting missing** — `r.AllowStaticLighting=False` in DefaultEngine.ini silently disables `_BuiltData.uasset`. Set to `True`.
 - **OpenXRVisionOS plugin** lives at `Engine/Platforms/VisionOS/Plugins/Runtime/OpenXRVisionOS/` — not in `Engine/Plugins/`. Add `{"Name": "OpenXRVisionOS", "Enabled": true}` to your `.uproject`.

@@ -41,10 +41,15 @@ def main():
         info["CFBundleVersion"] = old + ".1"
 
     # Required privacy strings (Apple rejects without these — ITMS-90683)
-    info.setdefault("NSCameraUsageDescription",       "This app may use the camera.")
-    info.setdefault("NSMicrophoneUsageDescription",   "This app may use the microphone.")
-    info.setdefault("NSPhotoLibraryUsageDescription", "This app may access your photo library.")
-    info.setdefault("ITSAppUsesNonExemptEncryption",  False)
+    # NOTE: For visionOS, INI-based privacy keys (NSCameraUsageDescription etc. set under
+    # [/Script/IOSRuntimeSettings.IOSRuntimeSettings]) are NOT translated into the visionOS
+    # plist by UE5. Only AdditionalPlistData entries make it in via the build system.
+    # This script patches the staged plist directly as a belt-and-suspenders fallback.
+    info.setdefault("NSCameraUsageDescription",          "This app may use the camera.")
+    info.setdefault("NSMicrophoneUsageDescription",      "This app may use the microphone.")
+    info.setdefault("NSPhotoLibraryUsageDescription",    "This app may access your photo library.")
+    info.setdefault("NSHandsTrackingUsageDescription",   "This app tracks your hands to enable interaction.")
+    info.setdefault("ITSAppUsesNonExemptEncryption",     False)
 
     with open(plist_path, "wb") as f:
         plistlib.dump(info, f)

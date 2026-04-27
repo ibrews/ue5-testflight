@@ -127,6 +127,12 @@ python3 scripts/attach_to_group.py macos
 
 **Half-transparent rendering in mixed immersion** — `r.MobileHDR=False`, `r.ForwardShading=True`, and `r.Mobile.ShadingPath=0` must all be present in `DefaultEngine.ini`. Missing any one of them causes the HDR/deferred pipeline to mishandle the alpha channel, making geometry appear semi-transparent.
 
+**Touch controls appear on visionOS** because UE5 defaults `DefaultTouchInterface` to the virtual joystick asset. Set `DefaultTouchInterface=None` in `Config/DefaultInput.ini` under `[/Script/Engine.InputSettings]`.
+
+**One eye renders black in UE5 5.7 on visionOS** — a known engine bug where occlusion queries corrupt the second eye. Fix: add `r.AllowOcclusionQueries=False` to `DefaultEngine.ini` under `[/Script/Engine.RendererSettings]`.
+
+**Testing mixed immersion: disable the sky sphere mesh in your level.** The sky sphere renders opaque behind everything, making it impossible to verify passthrough is working. With sky hidden: passthrough visible → mixed immersion working ✓; black → alpha pipeline issue. Use `r.SkyAtmosphere=0` only if your level actually uses a Sky Atmosphere actor — the VR Template uses a sky sphere mesh, which must be hidden in the editor.
+
 **visionOS ASC processing takes 30–60 min** (vs 5–10 min for iOS/macOS). The poll script will time out. Run `attach_to_group.py visionos` manually once the build is VALID.
 
 **UE5 allows only one RunUAT at a time.** Don't trigger builds simultaneously — the second one exits immediately with an AutomationTool mutex error.

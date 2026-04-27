@@ -25,28 +25,12 @@ security list-keychains -d user -s "$CI_KEYCHAIN_PATH" \
     ~/Library/Keychains/login.keychain-db /Library/Keychains/System.keychain
 
 # ── 2. Generate entitlements + patch Info.plist ────────────────────────────
+# NOTE: Must use /opt/homebrew/bin/python3 with a standalone script — NOT a
+# python3 heredoc. Heredocs in LaunchAgent context silently fail to write
+# plist files (the print executes but plistlib.dump does not persist).
 echo "[2/6] Generating entitlements + patching Info.plist..."
 /opt/homebrew/bin/python3 "$SCRIPT_DIR/gen_entitlements.py" "$PROFILE_PATH" "$ENTITLEMENTS"
-
-/opt/homebrew/bin/python3 - << PYEOF
-import plistlib, os, sys
-path = "${APP_DIR}/Info.plist"
-if not os.path.exists(path):
-    print(f"ERROR: Info.plist not found at {path}"); sys.exit(1)
-with open(path, "rb") as f:
-    info = plistlib.load(f)
-info["CFBundleIdentifier"] = "${BUNDLE_ID}"
-old_build = info.get("CFBundleVersion", "0")
-parts = old_build.rsplit(".", 1)
-info["CFBundleVersion"] = parts[0] + "." + str(int(parts[1]) + 1) if len(parts) == 2 else old_build + ".1"
-info.setdefault("NSCameraUsageDescription",      "This app may use the camera.")
-info.setdefault("NSMicrophoneUsageDescription",  "This app may use the microphone.")
-info.setdefault("NSPhotoLibraryUsageDescription","This app may access your photo library.")
-info.setdefault("ITSAppUsesNonExemptEncryption", False)
-with open(path, "wb") as f:
-    plistlib.dump(info, f)
-print(f"  BundleID: {info['CFBundleIdentifier']}  Build: {info.get('CFBundleVersion')}")
-PYEOF
+/opt/homebrew/bin/python3 "$SCRIPT_DIR/plist_patch.py" "$APP_DIR/Info.plist" "$BUNDLE_ID"
 
 # ── 3. Re-sign ─────────────────────────────────────────────────────────────
 echo "[3/6] Re-signing .app..."

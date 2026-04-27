@@ -52,24 +52,11 @@ else
 fi
 
 # ── 3. Patch Info.plist ────────────────────────────────────────────────────
+# NOTE: Must use /opt/homebrew/bin/python3 with a standalone script — NOT a
+# python3 heredoc. Heredocs in LaunchAgent context silently fail to write
+# plist files (the print executes but plistlib.dump does not persist).
 echo "[3/6] Patching Info.plist..."
-/opt/homebrew/bin/python3 - << PYEOF
-import plistlib, sys
-path = "${WORK_APP}/Info.plist"
-with open(path, "rb") as f:
-    info = plistlib.load(f)
-info["CFBundleIdentifier"] = "${BUNDLE_ID}"
-old_build = info.get("CFBundleVersion", "0")
-parts = old_build.rsplit(".", 1)
-info["CFBundleVersion"] = parts[0] + "." + str(int(parts[1]) + 1) if len(parts) == 2 else old_build + ".1"
-info.setdefault("NSCameraUsageDescription",      "This app uses the camera for spatial computing features.")
-info.setdefault("NSMicrophoneUsageDescription",  "This app uses the microphone for voice input and audio features.")
-info.setdefault("NSPhotoLibraryUsageDescription","This app may access your photo library to save screenshots.")
-info.setdefault("ITSAppUsesNonExemptEncryption", False)
-with open(path, "wb") as f:
-    plistlib.dump(info, f)
-print(f"  BundleID: {info['CFBundleIdentifier']}  Build: {info.get('CFBundleVersion')}")
-PYEOF
+/opt/homebrew/bin/python3 "$SCRIPT_DIR/plist_patch.py" "$WORK_APP/Info.plist" "$BUNDLE_ID"
 
 # ── 4. Inject visionOS icon + re-sign ──────────────────────────────────────
 /opt/homebrew/bin/python3 "$SCRIPT_DIR/gen_visionos_icon.py" "$WORK_APP"

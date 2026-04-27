@@ -14,11 +14,12 @@ import plistlib, sys, os
 
 def main():
     if len(sys.argv) < 3:
-        print("Usage: plist_patch.py <Info.plist> <bundle_id>")
+        print("Usage: plist_patch.py <Info.plist> <bundle_id> [explicit_version]")
         sys.exit(1)
 
-    plist_path = sys.argv[1]
-    bundle_id  = sys.argv[2]
+    plist_path       = sys.argv[1]
+    bundle_id        = sys.argv[2]
+    explicit_version = sys.argv[3] if len(sys.argv) > 3 else None
 
     if not os.path.exists(plist_path):
         print(f"ERROR: Info.plist not found at {plist_path}")
@@ -29,16 +30,20 @@ def main():
 
     info["CFBundleIdentifier"] = bundle_id
 
-    # Auto-increment last component of CFBundleVersion to avoid ASC duplicate errors
-    old = info.get("CFBundleVersion", "0")
-    parts = old.rsplit(".", 1)
-    if len(parts) == 2:
-        try:
-            info["CFBundleVersion"] = parts[0] + "." + str(int(parts[1]) + 1)
-        except ValueError:
-            info["CFBundleVersion"] = old + ".1"
+    if explicit_version:
+        # Version supplied by caller (from tracking file) — use as-is
+        info["CFBundleVersion"] = explicit_version
     else:
-        info["CFBundleVersion"] = old + ".1"
+        # Fallback: auto-increment from whatever is in the plist
+        old = info.get("CFBundleVersion", "0")
+        parts = old.rsplit(".", 1)
+        if len(parts) == 2:
+            try:
+                info["CFBundleVersion"] = parts[0] + "." + str(int(parts[1]) + 1)
+            except ValueError:
+                info["CFBundleVersion"] = old + ".1"
+        else:
+            info["CFBundleVersion"] = old + ".1"
 
     # Required privacy strings (Apple rejects without these — ITMS-90683)
     # NOTE: For visionOS, INI-based privacy keys (NSCameraUsageDescription etc. set under

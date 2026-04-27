@@ -51,12 +51,23 @@ else
     fi
 fi
 
-# ── 3. Patch Info.plist ────────────────────────────────────────────────────
-# NOTE: Must use /opt/homebrew/bin/python3 with a standalone script — NOT a
-# python3 heredoc. Heredocs in LaunchAgent context silently fail to write
-# plist files (the print executes but plistlib.dump does not persist).
+# ── 3. Patch Info.plist — version from tracking file, not staged plist ────
+# We track the last SUCCESSFULLY uploaded build number in a file so that
+# failed uploads don't burn version numbers (plist gets incremented each
+# attempt otherwise, creating gaps like .6 → .12).
 echo "[3/6] Patching Info.plist..."
-/opt/homebrew/bin/python3 "$SCRIPT_DIR/plist_patch.py" "$WORK_APP/Info.plist" "$BUNDLE_ID"
+VERSION_FILE="$VISIONOS_ARCHIVE_DIR/.last_successful_build"
+if [ -f "$VERSION_FILE" ]; then
+    LAST=$(cat "$VERSION_FILE")
+    PREFIX=$(echo "$LAST" | rev | cut -d. -f2- | rev)
+    SUFFIX=$(echo "$LAST" | rev | cut -d. -f1 | rev)
+    NEXT_VERSION="${PREFIX}.$((SUFFIX + 1))"
+else
+    # First run — read from staged plist as base
+    NEXT_VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "$WORK_APP/Info.plist" 2>/dev/null || echo "0.0")
+fi
+echo "  Next build version: $NEXT_VERSION"
+/opt/homebrew/bin/python3 "$SCRIPT_DIR/plist_patch.py" "$WORK_APP/Info.plist" "$BUNDLE_ID" "$NEXT_VERSION"
 
 # ── 4. Inject visionOS icon + re-sign ──────────────────────────────────────
 /opt/homebrew/bin/python3 "$SCRIPT_DIR/gen_visionos_icon.py" "$WORK_APP"
@@ -87,6 +98,11 @@ echo "[6/6] Uploading to TestFlight (altool -t ios covers visionOS)..."
 xcrun altool --upload-app --type ios --file "$IPA_PATH" \
     --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID" --verbose 2>&1
 [ $? -ne 0 ] && echo "UPLOAD FAILED" && exit 1
+
+# Record the successfully uploaded version so next run increments cleanly
+UPLOADED_VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "$WORK_APP/Info.plist" 2>/dev/null)
+echo "$UPLOADED_VERSION" > "$VERSION_FILE"
+echo "  Recorded successful build: $UPLOADED_VERSION → $VERSION_FILE"
 
 echo "Polling for VALID + attaching to external group..."
 /opt/homebrew/bin/python3 "$SCRIPT_DIR/attach_to_group.py" visionos

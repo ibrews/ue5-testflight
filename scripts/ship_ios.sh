@@ -30,7 +30,18 @@ security list-keychains -d user -s "$CI_KEYCHAIN_PATH" \
 # plist files (the print executes but plistlib.dump does not persist).
 echo "[2/6] Generating entitlements + patching Info.plist..."
 /opt/homebrew/bin/python3 "$SCRIPT_DIR/gen_entitlements.py" "$PROFILE_PATH" "$ENTITLEMENTS"
-/opt/homebrew/bin/python3 "$SCRIPT_DIR/plist_patch.py" "$APP_DIR/Info.plist" "$BUNDLE_ID"
+
+VERSION_FILE="$IOS_ARCHIVE_DIR/.last_successful_build"
+if [ -f "$VERSION_FILE" ]; then
+    LAST=$(cat "$VERSION_FILE")
+    PREFIX=$(echo "$LAST" | rev | cut -d. -f2- | rev)
+    SUFFIX=$(echo "$LAST" | rev | cut -d. -f1 | rev)
+    NEXT_VERSION="${PREFIX}.$((SUFFIX + 1))"
+else
+    NEXT_VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "$APP_DIR/Info.plist" 2>/dev/null || echo "0.0")
+fi
+echo "  Next build version: $NEXT_VERSION"
+/opt/homebrew/bin/python3 "$SCRIPT_DIR/plist_patch.py" "$APP_DIR/Info.plist" "$BUNDLE_ID" "$NEXT_VERSION"
 
 # ── 3. Re-sign ─────────────────────────────────────────────────────────────
 echo "[3/6] Re-signing .app..."
@@ -59,6 +70,10 @@ echo "[5/6] Uploading to TestFlight..."
 xcrun altool --upload-app --type ios --file "$IPA_PATH" \
     --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID" --verbose 2>&1
 [ $? -ne 0 ] && echo "UPLOAD FAILED" && exit 1
+
+UPLOADED_VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "$APP_DIR/Info.plist" 2>/dev/null)
+echo "$UPLOADED_VERSION" > "$VERSION_FILE"
+echo "  Recorded successful build: $UPLOADED_VERSION → $VERSION_FILE"
 
 # ── 6. Poll → attach to external group ────────────────────────────────────
 echo "[6/6] Polling for VALID, then attaching to external group..."

@@ -113,16 +113,30 @@ def main():
         print("Re-run this script manually once the build processes: python3 attach_to_group.py")
         sys.exit(0)
 
-    # Attach to external group
+    # 1. Attach to external group (required for external visibility, but not sufficient on its own)
     status, _ = asc_request("POST",
         f"/v1/betaGroups/{ext_group_id}/relationships/builds",
         conf,
         {"data": [{"type": "builds", "id": build_id}]})
-
     if status in (200, 201, 204):
-        print(f"Attached build {build_id} to external TestFlight group — Beta App Review triggered")
+        print(f"Attached build {build_id} to external TestFlight group (HTTP {status})")
     else:
         print(f"Attach failed HTTP {status}. Attach manually in ASC or re-run this script.")
+
+    # 2. Submit for Beta App Review — REQUIRED to actually push the build to external testers.
+    #    Without this, externalBuildState stays at READY_FOR_BETA_SUBMISSION and the build
+    #    never appears in the external group's build list. Apple typically auto-approves
+    #    repeat submissions of the same app within seconds.
+    status, body = asc_request("POST",
+        "/v1/betaAppReviewSubmissions",
+        conf,
+        {"data": {"type": "betaAppReviewSubmissions",
+                  "relationships": {"build": {"data": {"type": "builds", "id": build_id}}}}})
+    if status in (200, 201):
+        print(f"Submitted build {build_id} for Beta App Review — external testers will be notified once approved")
+    else:
+        print(f"Beta App Review submit failed HTTP {status}: {str(body)[:200]}")
+        print("If this build is already in review, that's fine. Otherwise submit manually in ASC.")
 
     print("Internal group (hasAccessToAllBuilds=true) distributes automatically.")
 

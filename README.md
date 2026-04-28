@@ -13,7 +13,7 @@ launchctl start com.yourcompany.iosbuild
 |------|-----|----------|-------|
 | Cook + stage via RunUAT | ✓ | ✓ | ✓ |
 | Patch Info.plist (bundle ID, build number, privacy strings) | ✓ | ✓ | ✓ |
-| Auto-increment CFBundleVersion | ✓ | ✓ | ✓ |
+| Auto-increment CFBundleVersion (tracked file, no gaps) | ✓ | ✓ | ✓ |
 | Extract entitlements from provisioning profile | ✓ | ✓ | ✓ |
 | Generate 3-layer `.solidimagestack` icon (Apple requirement) | — | ✓ | — |
 | Re-sign with CI keychain (no UI dialog) | ✓ | ✓ | ✓ |
@@ -35,6 +35,8 @@ launchctl start com.yourcompany.iosbuild
 - 3rd Party Mac Developer Application certificate + Mac App Store `.provisionprofile` (for macOS)
 - All certs imported into a CI keychain (to sign without UI prompt)
 
+---
+
 ## Setup
 
 **1. Clone and configure**
@@ -49,35 +51,27 @@ cp ue5kit.conf.template ue5kit.conf
 **2. Set up CI keychain** (skip if using login keychain — but login keychain requires a GUI session)
 
 ```bash
-# Create a dedicated keychain so codesign works from LaunchAgents (no UI prompt)
 security create-keychain -p "your-password" ~/Library/Keychains/ue5-ci.keychain-db
-
-# Import iOS Distribution cert
 security import YourIOSDistCert.p12 -k ~/Library/Keychains/ue5-ci.keychain-db -P "" -T /usr/bin/codesign
-
-# Import Mac Application Distribution cert
 security import YourMacDistCert.p12 -k ~/Library/Keychains/ue5-ci.keychain-db -P "" -T /usr/bin/codesign
-
-# Allow codesign to access both certs without a UI dialog
 security set-key-partition-list -S "apple-tool:,apple:,codesign:" -s -k "your-password" ~/Library/Keychains/ue5-ci.keychain-db
 ```
 
 Update `CI_KEYCHAIN_PATH` and `CI_KEYCHAIN_PASS` in `ue5kit.conf`.
 
-**3. Add visionOS config to your UE5 project** (required, or app crashes after splash screen)
+**3. Copy visionOS config into your UE5 project** (required or app crashes after splash)
 
 ```bash
 mkdir -p YourProject/Config/VisionOS
 cp ue5-config/VisionOS/*.ini YourProject/Config/VisionOS/
 ```
 
-**4. Set iOS fps cap settings in your UE5 project**
+**4. Set iOS fps cap in your UE5 project**
 
 In `Config/DefaultEngine.ini` under `[/Script/IOSRuntimeSettings.IOSRuntimeSettings]`:
 ```ini
 FrameRateLock=PUFRL_None
 ```
-
 Copy `ue5-config/DefaultDeviceProfiles.ini` content into `Config/DefaultDeviceProfiles.ini`.
 
 **5. Run setup**
@@ -86,7 +80,115 @@ Copy `ue5-config/DefaultDeviceProfiles.ini` content into `Config/DefaultDevicePr
 bash setup.sh
 ```
 
-This validates config, checks prerequisites, and installs the six LaunchAgents.
+Validates config, checks prerequisites, installs the six LaunchAgents.
+
+---
+
+## visionOS Project Setup
+
+visionOS requires significantly more project configuration than iOS. Do all of this before your first build.
+
+### Required plugins
+
+Add to your `.uproject` Plugins array. The first three are in `Engine/Plugins/`. `OpenXRVisionOS` is in `Engine/Platforms/VisionOS/Plugins/` and won't show in a standard plugin search — add it manually:
+
+```json
+{"Name": "OpenXR",              "Enabled": true},
+{"Name": "OpenXREyeTracker",    "Enabled": true},
+{"Name": "OpenXRHandTracking",  "Enabled": true},
+{"Name": "OpenXRVisionOS",      "Enabled": true}
+```
+
+### Required DefaultEngine.ini settings
+
+These must match the VR Template (`TP_VirtualRealityBP`) exactly. Missing any one causes rendering issues:
+
+```ini
+[/Script/EngineSettings.GameMapsSettings]
+GlobalDefaultGameMode=/Game/XRFramework/Blueprints/BP_XRGameMode.BP_XRGameMode_C
+GameDefaultMap=/Game/YourLevel/YourLevel
+EditorStartupMap=/Game/YourLevel/YourLevel.YourLevel
+
+[/Script/Engine.RendererSettings]
+r.ForwardShading=True
+r.MobileHDR=False
+r.Mobile.ShadingPath=0
+r.Mobile.PropagateAlpha=True
+r.Mobile.UseHWsRGBEncoding=True
+r.AllowStaticLighting=True
+r.AllowOcclusionQueries=False
+r.Shadow.Virtual.Enable=0
+r.DynamicGlobalIlluminationMethod=0
+r.ReflectionMethod=1
+r.GenerateMeshDistanceFields=True
+r.DefaultFeature.AutoExposure=False
+r.DefaultFeature.AmbientOcclusion=False
+r.DefaultFeature.AmbientOcclusionStaticFraction=False
+r.DefaultFeature.MotionBlur=False
+vr.MobileMultiView=True
+vr.InstancedStereo=True
+
+[/Script/OpenXRHMD.OpenXRHMDSettings]
+xr.OpenXRInvertAlpha=True
+```
+
+**`r.MobileHDR=False` + `r.ForwardShading=True` + `r.Mobile.ShadingPath=0`** — all three required for correct alpha propagation in mixed immersion. Missing any one causes geometry to appear half-transparent.
+
+**`xr.OpenXRInvertAlpha=True`** — without this the scene renders transparent (you see the real world but no UE5 content).
+
+**`r.AllowOcclusionQueries=False`** — UE5 5.7 bug: occlusion queries corrupt the second eye. Disable it.
+
+**`r.AllowStaticLighting=True`** — required to load `_BuiltData.uasset` baked lighting. If your project was created with static lighting disabled, baked lightmaps will be silently ignored.
+
+### Required DefaultGame.ini
+
+```ini
+[/Script/EngineSettings.GeneralProjectSettings]
+bStartInVR=True
+```
+
+### Required DefaultInput.ini
+
+```ini
+[/Script/Engine.InputSettings]
+DefaultTouchInterface=None
+```
+
+Without `DefaultTouchInterface=None`, UE5 shows virtual joystick controls on visionOS.
+
+### Privacy strings (visionOS)
+
+INI-based privacy keys (`NSCameraUsageDescription` etc. under `[/Script/IOSRuntimeSettings.IOSRuntimeSettings]`) are **not** translated to visionOS plists by UE5. Use `AdditionalPlistData` instead, and add under `[/Script/IOSRuntimeSettings.IOSRuntimeSettings]`:
+
+```ini
+AdditionalPlistData=<key>NSHandsTrackingUsageDescription</key><string>Track your hands to interact with the application.</string>
+```
+
+`NSHandsTrackingUsageDescription` is required on xrOS — ARKit's hand tracking XPC service intentionally crashes the app if this key is absent (SIGABRT on launch, ~3 seconds in).
+
+The `plist_patch.py` ship script also injects privacy strings directly into the staged plist as a belt-and-suspenders fallback.
+
+### VisionOSEngine.ini (mixed immersion mode)
+
+The `ue5-config/VisionOS/VisionOSEngine.ini` in this kit enables **mixed immersion** (content overlaid on real-world passthrough) by default. To switch to **full immersion** (dark surround), comment out the four lines at the bottom:
+
+```ini
+; Comment these four out for full immersion:
+r.Mobile.PropagateAlpha=1
+r.PostProcessing.PropagateAlpha=1
+r.AlphaInvertPass=1
+
+[/Script/VisionOSRuntimeSettings.VisionOSRuntimeSettings]
+ImmersiveStyle=1
+```
+
+**Tip:** To verify mixed immersion is working, hide the sky sphere mesh in your level. With sky hidden: passthrough visible → ✓; black → alpha pipeline issue.
+
+### Default map must be project-owned
+
+Engine maps like `/Engine/Maps/Templates/OpenWorld` do not get cooked for device builds. Set `GameDefaultMap` to a map in your project's `Content/` folder — otherwise the app launches into a blank/transparent scene.
+
+---
 
 ## Usage
 
@@ -99,8 +201,8 @@ launchctl start com.yourcompany.macosbuild
 # Monitor
 tail -f /tmp/ue5kit-ios-build.log
 tail -f /tmp/ue5kit-ship-ios.log
-tail -f /tmp/ue5kit-macos-build.log
-tail -f /tmp/ue5kit-ship-macos.log
+tail -f /tmp/ue5kit-visionos-build.log
+tail -f /tmp/ue5kit-ship-visionos.log
 
 # Ship only (build already staged)
 launchctl start com.yourcompany.shipios
@@ -112,6 +214,8 @@ python3 scripts/attach_to_group.py ios
 python3 scripts/attach_to_group.py visionos
 python3 scripts/attach_to_group.py macos
 ```
+
+---
 
 ## Hard-Won Gotchas
 
@@ -125,13 +229,15 @@ python3 scripts/attach_to_group.py macos
 
 **visionOS icon must be a `.solidimagestack`.** Apple rejects with ITMS-90970 without one. The `gen_visionos_icon.py` script generates a minimal placeholder and compiles it with `xcrun actool`. The `CFBundlePrimaryIcon` Info.plist value must be a **string** — not a dict (ITMS-90039 if dict).
 
-**Half-transparent rendering in mixed immersion** — `r.MobileHDR=False`, `r.ForwardShading=True`, and `r.Mobile.ShadingPath=0` must all be present in `DefaultEngine.ini`. Missing any one of them causes the HDR/deferred pipeline to mishandle the alpha channel, making geometry appear semi-transparent.
+**Half-transparent rendering in mixed immersion** — `r.MobileHDR=False`, `r.ForwardShading=True`, and `r.Mobile.ShadingPath=0` must all be present in `DefaultEngine.ini`. Missing any one causes the HDR/deferred pipeline to mishandle the alpha channel.
 
-**Touch controls appear on visionOS** because UE5 defaults `DefaultTouchInterface` to the virtual joystick asset. Set `DefaultTouchInterface=None` in `Config/DefaultInput.ini` under `[/Script/Engine.InputSettings]`.
+**One eye renders black on visionOS (UE5 5.7 bug)** — occlusion queries corrupt the second eye. Add `r.AllowOcclusionQueries=False` to `[/Script/Engine.RendererSettings]`.
 
-**One eye renders black in UE5 5.7 on visionOS** — a known engine bug where occlusion queries corrupt the second eye. Fix: add `r.AllowOcclusionQueries=False` to `DefaultEngine.ini` under `[/Script/Engine.RendererSettings]`.
+**Touch controls appear on visionOS** — set `DefaultTouchInterface=None` in `Config/DefaultInput.ini` under `[/Script/Engine.InputSettings]`.
 
-**Testing mixed immersion: disable the sky sphere mesh in your level.** The sky sphere renders opaque behind everything, making it impossible to verify passthrough is working. With sky hidden: passthrough visible → mixed immersion working ✓; black → alpha pipeline issue. Use `r.SkyAtmosphere=0` only if your level actually uses a Sky Atmosphere actor — the VR Template uses a sky sphere mesh, which must be hidden in the editor.
+**NSHandsTrackingUsageDescription crash** — ARKit's hand tracking XPC service intentionally crashes the app on launch (~3 seconds in) if this plist key is absent. Add via `AdditionalPlistData` in DefaultEngine.ini.
+
+**plist patching must use a standalone script** — `python3 - << HEREDOC` in LaunchAgent context silently fails to write plist files (`plistlib.dump` doesn't persist). The kit uses `plist_patch.py` via `/opt/homebrew/bin/python3`.
 
 **visionOS ASC processing takes 30–60 min** (vs 5–10 min for iOS/macOS). The poll script will time out. Run `attach_to_group.py visionos` manually once the build is VALID.
 
@@ -139,11 +245,11 @@ python3 scripts/attach_to_group.py macos
 
 **iOS builds run on Apple Vision Pro** via the iOS compatibility layer. You don't need a separate visionOS build to test on the headset.
 
-**macOS uses a different cert and profile type.** The iOS Distribution cert won't sign macOS builds. You need a `3rd Party Mac Developer Application` cert (`MACOS_CERT_SHA1`) and a Mac App Store `.provisionprofile` (`MACOS_PROFILE_PATH`) — separate from the iOS `.mobileprovision`.
-
-**macOS Info.plist is at `Contents/Info.plist`**, not at the root of the `.app` bundle like iOS. The ship script handles this automatically.
+**macOS uses a different cert and profile type.** The iOS Distribution cert won't sign macOS builds. You need a `3rd Party Mac Developer Application` cert and a Mac App Store `.provisionprofile` — separate from the iOS `.mobileprovision`.
 
 **macOS upload uses `--type macos` and a `.zip`**, not an IPA. `xcrun altool` accepts a zip of the `.app` bundle directly.
+
+---
 
 ## ASC Setup Notes
 
@@ -152,26 +258,29 @@ python3 scripts/attach_to_group.py macos
 - Create an "External" beta group — the ship scripts attach each build explicitly after it reaches VALID.
 - For the external group UUID, check the ASC URL when viewing the group, or via the API: `GET /v1/betaGroups?filter[app]=YOUR_APP_ID`.
 
+---
+
 ## File Structure
 
 ```
 ue5-testflight/
-├── ue5kit.conf.template     # copy to ue5kit.conf and fill in
-├── setup.sh                 # validates config + installs LaunchAgents
-├── SKILL.md                 # Claude Code skill (load via skills.sh)
+├── ue5kit.conf.template      # copy to ue5kit.conf and fill in
+├── setup.sh                  # validates config + installs LaunchAgents
+├── SKILL.md                  # Claude Code skill (load via skills.sh)
 ├── scripts/
-│   ├── run_ios_build.sh     # UE5 cook+stage for iOS → auto-triggers ship
+│   ├── run_ios_build.sh      # UE5 cook+stage for iOS → auto-triggers ship
 │   ├── run_visionos_build.sh
 │   ├── run_macos_build.sh
-│   ├── ship_ios.sh          # resign → repack → upload → distribute
+│   ├── ship_ios.sh           # resign → repack → upload → distribute
 │   ├── ship_visionos.sh
 │   ├── ship_macos.sh
-│   ├── gen_entitlements.py  # extract entitlements from .mobileprovision/.provisionprofile
-│   ├── gen_visionos_icon.py # generate .solidimagestack icon + compile with actool
-│   └── attach_to_group.py  # poll ASC for VALID + attach to external group (ios/visionos/macos)
+│   ├── plist_patch.py        # Info.plist patcher (bundle ID, version, privacy strings)
+│   ├── gen_entitlements.py   # extract entitlements from .mobileprovision/.provisionprofile
+│   ├── gen_visionos_icon.py  # generate .solidimagestack icon + compile with actool
+│   └── attach_to_group.py   # poll ASC for VALID + attach to external group (ios/visionos/macos)
 └── ue5-config/
     ├── VisionOS/
-    │   ├── VisionOSEngine.ini        # copy to your project Config/VisionOS/
+    │   ├── VisionOSEngine.ini         # copy to your project Config/VisionOS/
     │   └── VisionOSDeviceProfiles.ini
-    └── DefaultDeviceProfiles.ini     # iOS fps cap settings
+    └── DefaultDeviceProfiles.ini      # iOS fps cap settings
 ```

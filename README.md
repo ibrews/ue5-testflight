@@ -249,6 +249,13 @@ python3 scripts/attach_to_group.py macos
 
 **macOS upload uses `--type macos` and a `.zip`**, not an IPA. `xcrun altool` accepts a zip of the `.app` bundle directly.
 
+**MetaHuman iOS crash on cold launch (UE-227478)** — The Metal PSO precache pool compiles MetaHuman shader permutation `Main_00002308_a823f915` (vertex factory `0x2308`), which declares vertex attribute 7 (4th UV channel) in `stage_in` but UE5 builds the Metal vertex descriptor without it. AGX hard-aborts: `Vertex attribute 7 is not defined in the vertex descriptor`. Intermittent because it only fires on cold starts before the binary shader cache warms up. Fix: create `Config/IOS/IOSEngine.ini` with:
+```ini
+[ConsoleVariables]
+r.PSOPrecaching=0
+```
+Scope to the IOS-specific ini (not `DefaultEngine.ini`) so desktop builds keep precaching. The file **must exist before the cook starts** — if you create it mid-cook, UAT has already processed config and the setting won't bundle. Verify it was included by checking the cook log for `Including config file .../Config/IOS/IOSEngine.ini`. A template is in `ue5-config/IOS/IOSEngine.ini`.
+
 ---
 
 ## ASC Setup Notes
@@ -279,6 +286,8 @@ ue5-testflight/
 │   ├── gen_visionos_icon.py  # generate .solidimagestack icon + compile with actool
 │   └── attach_to_group.py   # poll ASC for VALID + attach to external group (ios/visionos/macos)
 └── ue5-config/
+    ├── IOS/
+    │   └── IOSEngine.ini              # UE-227478 PSO precache workaround (MetaHuman)
     ├── VisionOS/
     │   ├── VisionOSEngine.ini         # copy to your project Config/VisionOS/
     │   └── VisionOSDeviceProfiles.ini

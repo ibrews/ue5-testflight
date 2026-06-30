@@ -1,0 +1,28 @@
+<!DOCTYPE html><html><head><meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#060810;--teal:#00d4ff;--purple:#a78bfa;--amber:#f59e0b;--text:#f0f4ff;--dim:rgba(240,244,255,.5);--font:'Space Grotesk',system-ui,sans-serif}
+html,body{width:1200px;height:630px;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font)}
+.bg{position:absolute;inset:0}
+.bg-gradient{position:absolute;inset:0;background:radial-gradient(ellipse 80% 60% at 15% 50%,rgba(124,58,237,.22) 0%,transparent 55%),radial-gradient(ellipse 60% 70% at 85% 25%,rgba(0,212,255,.16) 0%,transparent 55%),linear-gradient(180deg,#060810 0%,#0b0820 50%,#060810 100%)}
+canvas{position:absolute;inset:0}
+.art{position:absolute;top:50%;right:96px;transform:translateY(-50%);width:330px;height:330px;display:flex;align-items:center;justify-content:center}
+.tile{width:236px;height:236px;border-radius:52px;display:flex;align-items:center;justify-content:center;background:linear-gradient(150deg,#00d4ff 0%,#0077aa 100%);box-shadow:0 24px 70px rgba(0,0,0,.5),inset 0 2px 0 rgba(255,255,255,.18)}
+.tile svg{width:130px;height:130px}
+.content{position:absolute;top:50%;left:84px;transform:translateY(-50%);max-width:640px;z-index:10}
+.tag{font-size:15px;font-weight:600;letter-spacing:.26em;text-transform:uppercase;color:#00d4ff;opacity:.95;margin-bottom:24px}
+.title{font-size:72px;font-weight:700;line-height:1.02;letter-spacing:-.03em;background:linear-gradient(130deg,#fff 25%,#a5d8ff 70%,#7fc4ff 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:22px}
+.tagline{font-size:23px;font-weight:400;color:var(--dim);line-height:1.42;max-width:560px}
+.footer{position:absolute;bottom:40px;left:84px;right:96px;display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.32)}
+.footer .a{color:rgba(255,255,255,.55)}
+</style></head><body>
+<div class="bg"><div class="bg-gradient"></div><canvas id="stars"></canvas></div>
+<div class="art"><div class="tile"><svg viewBox="0 0 128 128" fill="none"><path d="M14 60 L114 18 L86 112 L62 78 L40 96 Z" fill="#fff" opacity=".96"/><path d="M62 78 L114 18 L40 96 Z" fill="#fff" opacity=".55"/></svg></div></div>
+<div class="content"><div class="tag">Automated · UE5 → iOS</div><h1 class="title">UE5 →<br>TestFlight</h1><p class="tagline">Ship an Unreal Engine 5 app to TestFlight with one automated pipeline — no manual Xcode dance.</p></div>
+<div class="footer"><span class="a">Alex Coulombe Presents</span><span>Unreal · Xcode · CI</span></div>
+<script>
+const cv=document.getElementById('stars'),sc=cv.getContext('2d');cv.width=1200;cv.height=630;
+const stars=Array.from({length:90},(_,i)=>({x:(i*97+37)%1200,y:(i*193+61)%630,r:((i*7)%14)/10+.3,o:((i*11)%50)/100+.15}));
+stars.forEach(s=>{sc.beginPath();sc.arc(s.x,s.y,s.r,0,Math.PI*2);sc.fillStyle=`rgba(210,225,255,${s.o})`;sc.fill();});
+</script></body></html>

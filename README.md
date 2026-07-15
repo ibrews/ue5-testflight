@@ -214,6 +214,17 @@ python3 scripts/attach_to_group.py ios
 python3 scripts/attach_to_group.py visionos
 python3 scripts/attach_to_group.py macos
 ```
+---
+
+## Things to Try
+
+1. **Clone and configure:** `git clone https://github.com/ibrews/ue5-testflight && cp ue5kit.conf.template ue5kit.conf` — fill in your project path, bundle ID, and ASC API key; then run `bash setup.sh` to validate config and install the six LaunchAgents.
+2. **Trigger a full iOS build:** `launchctl start com.yourcompany.iosbuild` — runs the full pipeline: UAT cook → resign → repack → upload to ASC → attach to TestFlight groups. One command, no manual steps. Takes 30–60 min.
+3. **Watch it live:** `tail -f /tmp/ue5kit-ios-build.log` and `tail -f /tmp/ue5kit-ship-ios.log` — two parallel log streams. Build log shows UAT progress; ship log shows signing, upload, and ASC polling state.
+4. **Ship only (skip the cook):** `launchctl start com.yourcompany.shipios` — skips the 30–60 min cook/stage and re-runs only resign → repack → upload → distribute. Useful when the build is already staged but upload failed.
+5. **Manually attach to an external TestFlight group:** `python3 scripts/attach_to_group.py visionos` — useful when the ASC poll times out during the long visionOS processing window; polls until the build reaches VALID, then attaches it to the external group automatically.
+
+
 
 ---
 

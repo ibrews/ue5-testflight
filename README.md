@@ -214,7 +214,6 @@ python3 scripts/attach_to_group.py ios
 python3 scripts/attach_to_group.py visionos
 python3 scripts/attach_to_group.py macos
 ```
----
 
 ## Things to Try
 
@@ -223,8 +222,6 @@ python3 scripts/attach_to_group.py macos
 3. **Watch it live:** `tail -f /tmp/ue5kit-ios-build.log` and `tail -f /tmp/ue5kit-ship-ios.log` — two parallel log streams. Build log shows UAT progress; ship log shows signing, upload, and ASC polling state.
 4. **Ship only (skip the cook):** `launchctl start com.yourcompany.shipios` — skips the 30–60 min cook/stage and re-runs only resign → repack → upload → distribute. Useful when the build is already staged but upload failed.
 5. **Manually attach to an external TestFlight group:** `python3 scripts/attach_to_group.py visionos` — useful when the ASC poll times out during the long visionOS processing window; polls until the build reaches VALID, then attaches it to the external group automatically.
-
-
 
 ---
 
